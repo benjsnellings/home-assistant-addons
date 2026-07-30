@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Thin wrapper around Home Assistant Core API via the Supervisor proxy.
+# Usage: ha-api METHOD PATH [curl args...]
+# Example: ha-api GET /states
+# Example: ha-api GET '/history/period/2026-07-29T00:00:00+00:00?filter_entity_id=sun.sun'
+set -euo pipefail
+
+METHOD="${1:-}"
+PATH_PART="${2:-}"
+shift $(( $# > 0 ? 1 : 0 ))
+shift $(( $# > 0 ? 1 : 0 )) || true
+
+if [[ -z "${METHOD}" || -z "${PATH_PART}" ]]; then
+  echo "Usage: ha-api METHOD PATH [extra curl args...]" >&2
+  echo "  ha-api GET /states" >&2
+  echo "  ha-api GET '/history/period/2026-07-29T00:00:00+00:00?filter_entity_id=sun.sun'" >&2
+  exit 2
+fi
+
+TOKEN="${HA_TOKEN:-${SUPERVISOR_TOKEN:-}}"
+BASE="${HA_URL:-http://supervisor/core/api}"
+BASE="${BASE%/}"
+PATH_PART="/${PATH_PART#/}"
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "ha-api: SUPERVISOR_TOKEN / HA_TOKEN is not set" >&2
+  exit 1
+fi
+
+exec curl -fsS \
+  -X "${METHOD}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  "$@" \
+  "${BASE}${PATH_PART}"

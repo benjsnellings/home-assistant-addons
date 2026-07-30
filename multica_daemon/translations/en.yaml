@@ -1,0 +1,25 @@
+configuration:
+  multica_token:
+    name: Multica token
+    description: Personal access token (mul_…) from Multica Settings → API Tokens
+  server_url:
+    name: Server URL
+    description: Multica API base URL
+  app_url:
+    name: App URL
+    description: Multica web app URL
+  workspace_id:
+    name: Workspace ID
+    description: Optional workspace to select after login
+  device_name:
+    name: Device name
+    description: Name shown for this daemon/runtime in Multica
+  anthropic_api_key:
+    name: Anthropic API key
+    description: Optional API key for headless Claude Code authentication
+  max_concurrent_tasks:
+    name: Max concurrent tasks
+    description: Maximum agent tasks this daemon runs in parallel
+  log_level:
+    name: Log level
+    description: Add-on log verbosity
