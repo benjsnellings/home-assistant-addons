@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- Set `init: false` so s6-overlay can be PID 1 (fixes `s6-overlay-suexec: fatal: can only run as pid 1`)
+
 ## 0.3.2
 
 - Install Node.js 22 from official binaries (bookworm apt Node 18 cannot run Pi)

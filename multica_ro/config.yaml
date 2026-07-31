@@ -1,5 +1,5 @@
 name: Multica Daemon (read-only)
-version: "0.3.2"
+version: "0.3.3"
 slug: multica_ro
 description: >-
   Multica agent daemon with read-only Home Assistant config/share/media mounts,
@@ -9,6 +9,8 @@ url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_ro
 arch:
   - aarch64
   - amd64
+# Required for s6-overlay v3: Docker must not inject tini as PID 1.
+init: false
 startup: services
 boot: auto
 hassio_api: true

@@ -99,7 +99,8 @@ RUN chmod a+x /run.sh \
       /etc/services.d/*/finish
 
 WORKDIR /workspace
-CMD ["/run.sh"]
+# Entrypoint /init (from HA base) is PID 1. Longruns live in /etc/services.d.
+# Do not set CMD to /run.sh — that would start a second Multica alongside services.d.
 
 # Access-mode defaults for this add-on variant (appended by sync-addons.sh)
 ENV \
