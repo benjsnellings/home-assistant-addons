@@ -1,0 +1,34 @@
+configuration:
+  multica_token:
+    name: Multica token
+    description: Required personal access token (mul_…) from Multica Settings → API Tokens
+  server_url:
+    name: Server URL
+    description: Multica API base URL
+  app_url:
+    name: App URL
+    description: Multica web app URL
+  workspace_id:
+    name: Workspace ID
+    description: Optional workspace to select after login
+  device_name:
+    name: Device name
+    description: Multica daemon/computer name. Leave blank for HA Config (read-only).
+  runtime_name:
+    name: Runtime name
+    description: Leave blank so Claude, Cursor, and Pi each register as separate runtimes.
+  anthropic_api_key:
+    name: Anthropic API key
+    description: Claude Code API key (plan-linked Console key for subscription usage)
+  cursor_api_key:
+    name: Cursor API key
+    description: Cursor Agent API key for headless plan authentication
+  openrouter_api_key:
+    name: OpenRouter API key
+    description: API key so the Pi agent can call OpenRouter models
+  openrouter_model:
+    name: OpenRouter model
+    description: Default Pi model id on OpenRouter (author/model)
+  max_concurrent_tasks:
+    name: Max concurrent tasks
+    description: Maximum agent tasks this daemon runs in parallel

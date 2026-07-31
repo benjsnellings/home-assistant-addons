@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Print Home Assistant entity states.
+# Usage: ha-states [entity_id]
+set -euo pipefail
+
+ENTITY="${1:-}"
+if [[ -n "${ENTITY}" ]]; then
+  ha-api GET "/states/${ENTITY}"
+else
+  ha-api GET /states
+fi

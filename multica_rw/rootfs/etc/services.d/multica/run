@@ -1,0 +1,3 @@
+#!/command/with-contenv bash
+# s6 longrun: start Multica daemon (Supervisor keeps the container; s6 restarts this service on crash)
+exec /run.sh

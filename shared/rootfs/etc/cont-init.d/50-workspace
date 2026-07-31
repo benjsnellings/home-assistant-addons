@@ -1,0 +1,14 @@
+#!/command/with-contenv bash
+# Writable Multica agent workspace (critical for the RO config mount variant).
+mkdir -p /data/workspace
+# Prefer a stable /workspace path for local_directory resources.
+if [[ ! -e /workspace ]]; then
+  ln -s /data/workspace /workspace
+elif [[ -d /workspace && ! -L /workspace ]]; then
+  # If a real dir already exists, keep it and also ensure /data/workspace is usable.
+  :
+else
+  ln -sfn /data/workspace /workspace
+fi
+chmod 0755 /data/workspace
+echo "[workspace] writable agent workspace ready at /workspace -> /data/workspace"

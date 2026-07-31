@@ -1,0 +1,49 @@
+name: Multica Daemon (read-write)
+version: "0.3.0"
+slug: multica_rw
+description: >-
+  Multica agent daemon with read-write Home Assistant config mounts and Claude +
+  Cursor + Pi runtimes (OpenRouter for Pi).
+url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_rw
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+hassio_api: true
+hassio_role: default
+homeassistant_api: true
+map:
+  - type: homeassistant_config
+    read_only: false
+    path: /config
+  - type: share
+    read_only: false
+  - type: ssl
+    read_only: true
+  - type: media
+    read_only: false
+options:
+  multica_token: null
+  server_url: "https://api.multica.ai"
+  app_url: "https://multica.ai"
+  workspace_id: ""
+  device_name: ""
+  runtime_name: ""
+  anthropic_api_key: ""
+  cursor_api_key: ""
+  openrouter_api_key: ""
+  openrouter_model: "anthropic/claude-sonnet-4"
+  max_concurrent_tasks: 2
+schema:
+  multica_token: password
+  server_url: url
+  app_url: url
+  workspace_id: str?
+  device_name: str?
+  runtime_name: str?
+  anthropic_api_key: password?
+  cursor_api_key: password?
+  openrouter_api_key: password?
+  openrouter_model: str?
+  max_concurrent_tasks: int(1,20)

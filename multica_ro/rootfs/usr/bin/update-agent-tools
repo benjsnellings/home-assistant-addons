@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Keep Claude Code, Cursor Agent, and Pi CLIs current.
+# Safe to run at container start and on a timer. Failures are logged, not fatal.
+set -u
+
+log() { echo "[tool-updater] $*"; }
+
+ARCH_RAW="$(uname -m)"
+case "${ARCH_RAW}" in
+  x86_64|amd64) CLAUDE_PLATFORM="linux-x64-musl"; CURSOR_ARCH="x64" ;;
+  aarch64|arm64) CLAUDE_PLATFORM="linux-arm64-musl"; CURSOR_ARCH="arm64" ;;
+  *) log "unsupported arch ${ARCH_RAW}"; exit 0 ;;
+esac
+
+mkdir -p /data/bin /data/.local/bin /data/.local/share /usr/local/bin
+
+update_claude() {
+  log "Updating Claude Code to latest…"
+  local version checksum url tmp
+  version="$(curl -fsSL https://downloads.claude.ai/claude-code-releases/latest)" || {
+    log "could not resolve Claude latest version"; return 0
+  }
+  checksum="$(curl -fsSL "https://downloads.claude.ai/claude-code-releases/${version}/manifest.json" \
+    | jq -r --arg p "${CLAUDE_PLATFORM}" '.platforms[$p].checksum // empty')" || true
+  if [[ -z "${checksum}" ]]; then
+    log "no Claude checksum for ${CLAUDE_PLATFORM} in ${version}"; return 0
+  fi
+  tmp="$(mktemp)"
+  url="https://downloads.claude.ai/claude-code-releases/${version}/${CLAUDE_PLATFORM}/claude"
+  if ! curl -fsSL "${url}" -o "${tmp}"; then
+    log "Claude download failed"; rm -f "${tmp}"; return 0
+  fi
+  if ! echo "${checksum}  ${tmp}" | sha256sum -c -; then
+    log "Claude checksum mismatch"; rm -f "${tmp}"; return 0
+  fi
+  install -m 0755 "${tmp}" /data/bin/claude
+  install -m 0755 "${tmp}" /usr/local/bin/claude
+  rm -f "${tmp}"
+  log "Claude Code ${version} installed ($(claude --version 2>/dev/null || true))"
+}
+
+update_cursor() {
+  log "Updating Cursor Agent…"
+  # Official installer places agent under $HOME/.local; use /data so it persists.
+  local old_home="${HOME:-}"
+  export HOME=/data
+  if curl -fsS https://cursor.com/install | bash; then
+    if [[ -x /data/.local/bin/cursor-agent ]]; then
+      ln -sfn /data/.local/bin/cursor-agent /data/bin/cursor-agent
+      ln -sfn /data/.local/bin/agent /data/bin/agent
+      ln -sfn /data/.local/bin/cursor-agent /usr/local/bin/cursor-agent
+      ln -sfn /data/.local/bin/agent /usr/local/bin/agent
+    fi
+    log "Cursor Agent updated ($(cursor-agent --version 2>/dev/null || agent --version 2>/dev/null || echo unknown))"
+  else
+    log "Cursor Agent update failed (non-fatal)"
+  fi
+  export HOME="${old_home}"
+}
+
+update_pi() {
+  log "Updating Pi coding agent…"
+  if ! command -v npm >/dev/null; then
+    log "npm missing; skip Pi update"; return 0
+  fi
+  if npm install -g --omit=dev @mariozechner/pi-coding-agent@latest; then
+    # Ensure pi is on PATH for Multica detection
+    if command -v pi >/dev/null; then
+      ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
+    fi
+    log "Pi updated ($(pi --version 2>/dev/null || echo unknown))"
+  else
+    log "Pi update failed (non-fatal)"
+  fi
+}
+
+update_claude
+update_cursor
+update_pi
+log "done"
