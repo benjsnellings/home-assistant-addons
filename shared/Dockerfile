@@ -7,6 +7,10 @@ ARG CLAUDE_VERSION=2.1.220
 # Pinned SHA256 for Claude glibc binaries (Cursor Agent also requires glibc).
 ARG CLAUDE_SHA256_X64=674f61f20ff306f3100cf9200e4c36c4b70278b5bef2884549819b942a89c863
 ARG CLAUDE_SHA256_ARM64=159e4a51d796f3bf14677577100f7efb845611b1ceaf0c30cbd8d4650d942185
+# Official Node binary (bookworm apt is Node 18; Pi needs >=22.19 for /v regex).
+ARG NODE_VERSION=22.23.0
+ARG NODE_SHA256_X64=14d7de44f235534799f8b171a4050d9a6a4bc99c87e053a25d3d54afa580aa20
+ARG NODE_SHA256_ARM64=4018815ac1bed4f18208901bbde524fee881253b591ee7bc952660e69bd057af
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -23,8 +27,6 @@ RUN \
         curl \
         git \
         jq \
-        nodejs \
-        npm \
         openssh-client \
         tar \
         xz-utils \
@@ -35,14 +37,25 @@ RUN \
            MULTICA_ARCH="amd64" \
            CLAUDE_PLATFORM="linux-x64" \
            CLAUDE_SHA256="${CLAUDE_SHA256_X64}" \
+           NODE_ARCH="x64" \
+           NODE_SHA256="${NODE_SHA256_X64}" \
            ;; \
          aarch64) \
            MULTICA_ARCH="arm64" \
            CLAUDE_PLATFORM="linux-arm64" \
            CLAUDE_SHA256="${CLAUDE_SHA256_ARM64}" \
+           NODE_ARCH="arm64" \
+           NODE_SHA256="${NODE_SHA256_ARM64}" \
            ;; \
          *) echo "Unsupported arch: ${BUILD_ARCH}" >&2; exit 1 ;; \
        esac \
+    \
+    && NODE_TGZ="node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TGZ}" -o "/tmp/${NODE_TGZ}" \
+    && echo "${NODE_SHA256}  /tmp/${NODE_TGZ}" | sha256sum -c - \
+    && tar -xJf "/tmp/${NODE_TGZ}" -C /usr/local --strip-components=1 \
+    && rm -f "/tmp/${NODE_TGZ}" \
+    && node --version && npm --version \
     \
     && MULTICA_TGZ="multica-cli-${MULTICA_VERSION}-linux-${MULTICA_ARCH}.tar.gz" \
     && curl -fsSL \
@@ -67,7 +80,7 @@ RUN \
     && ln -sfn /root/.local/bin/cursor-agent /usr/local/bin/cursor-agent \
     && ln -sfn /root/.local/bin/agent /usr/local/bin/agent \
     \
-    && npm install -g --omit=dev @mariozechner/pi-coding-agent@latest \
+    && npm install -g --omit=dev @earendil-works/pi-coding-agent@latest \
     \
     && multica version \
     && claude --version \
@@ -81,18 +94,9 @@ RUN chmod a+x /run.sh \
       /usr/bin/ha-states \
       /usr/bin/ha-history \
       /usr/bin/update-agent-tools \
-      /etc/services.d/multica/run \
-      /etc/services.d/multica/finish \
-      /etc/services.d/tool-updater/run \
-      /etc/services.d/tool-updater/finish \
-      /etc/cont-init.d/40-update-agent-tools \
-      /etc/cont-init.d/50-workspace
+      /etc/cont-init.d/* \
+      /etc/services.d/*/run \
+      /etc/services.d/*/finish
 
-ENV \
-    HOME=/data \
-    PATH="/data/bin:/data/.local/bin:/usr/local/bin:/usr/bin:/bin" \
-    HA_URL=http://supervisor/core/api \
-    S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
-    TOOL_UPDATE_INTERVAL_SECONDS=21600
-
-WORKDIR /data
+WORKDIR /workspace
+CMD ["/run.sh"]
