@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Keep Claude Code, Cursor Agent, and Pi CLIs current.
-# Safe to run at container start and on a timer. Failures are logged, not fatal.
+# Intended for the background tool-updater service — not cont-init (too slow for boot).
+# Failures are logged, not fatal. Each step is time-bounded so a hang cannot block forever.
 set -u
 
 log() { echo "[tool-updater] $*"; }
@@ -12,22 +13,33 @@ case "${ARCH_RAW}" in
   *) log "unsupported arch ${ARCH_RAW}"; exit 0 ;;
 esac
 
-mkdir -p /data/bin /data/.local/bin /data/.local/share /usr/local/bin
+mkdir -p /data/bin /data/.local/bin /data/.local/share /usr/local/bin \
+  /data/.npm /data/.cache
+
+# Bound network/install steps so Supervisor never sees a stuck boot/service.
+run_timeout() {
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${secs}" "$@"
+  else
+    "$@"
+  fi
+}
 
 update_claude() {
   log "Updating Claude Code to latest…"
   local version checksum url tmp
-  version="$(curl -fsSL https://downloads.claude.ai/claude-code-releases/latest)" || {
+  version="$(run_timeout 60 curl -fsSL https://downloads.claude.ai/claude-code-releases/latest)" || {
     log "could not resolve Claude latest version"; return 0
   }
-  checksum="$(curl -fsSL "https://downloads.claude.ai/claude-code-releases/${version}/manifest.json" \
+  checksum="$(run_timeout 60 curl -fsSL "https://downloads.claude.ai/claude-code-releases/${version}/manifest.json" \
     | jq -r --arg p "${CLAUDE_PLATFORM}" '.platforms[$p].checksum // empty')" || true
   if [[ -z "${checksum}" ]]; then
     log "no Claude checksum for ${CLAUDE_PLATFORM} in ${version}"; return 0
   fi
   tmp="$(mktemp)"
   url="https://downloads.claude.ai/claude-code-releases/${version}/${CLAUDE_PLATFORM}/claude"
-  if ! curl -fsSL "${url}" -o "${tmp}"; then
+  if ! run_timeout 120 curl -fsSL "${url}" -o "${tmp}"; then
     log "Claude download failed"; rm -f "${tmp}"; return 0
   fi
   if ! echo "${checksum}  ${tmp}" | sha256sum -c -; then
@@ -44,7 +56,7 @@ update_cursor() {
   # Official installer places agent under $HOME/.local; use /data so it persists.
   local old_home="${HOME:-}"
   export HOME=/data
-  if curl -fsS https://cursor.com/install | bash; then
+  if run_timeout 180 bash -c 'curl -fsS https://cursor.com/install | bash'; then
     if [[ -x /data/.local/bin/cursor-agent ]]; then
       ln -sfn /data/.local/bin/cursor-agent /data/bin/cursor-agent
       ln -sfn /data/.local/bin/agent /data/bin/agent
@@ -53,7 +65,7 @@ update_cursor() {
     fi
     log "Cursor Agent updated ($(cursor-agent --version 2>/dev/null || agent --version 2>/dev/null || echo unknown))"
   else
-    log "Cursor Agent update failed (non-fatal)"
+    log "Cursor Agent update failed or timed out (non-fatal)"
   fi
   export HOME="${old_home}"
 }
@@ -63,13 +75,17 @@ update_pi() {
   if ! command -v npm >/dev/null; then
     log "npm missing; skip Pi update"; return 0
   fi
-  if npm install -g --omit=dev @earendil-works/pi-coding-agent@latest; then
+  export npm_config_cache=/data/.npm
+  export npm_config_update_notifier=false
+  # Prefer offline when possible; audit/fund slow startup on constrained HA hosts.
+  if run_timeout 180 npm install -g --omit=dev --no-audit --no-fund \
+      @earendil-works/pi-coding-agent@latest; then
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
     fi
     log "Pi updated ($(pi --version 2>/dev/null || echo unknown))"
   else
-    log "Pi update failed (non-fatal)"
+    log "Pi update failed or timed out (non-fatal); image-seeded pi remains available"
   fi
 }
 
