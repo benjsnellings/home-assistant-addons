@@ -9,6 +9,6 @@ Default Multica names (override in add-on options):
 | `device_name` | `HA Config (read-write)` |
 | `runtime_name` | `Claude (HA read-write)` |
 
-Leave those options blank to keep the defaults.
+`multica_token` is required. Leave name options blank to keep the defaults.
 
 See the repository README for install steps and how this pairs with the read-only add-on.

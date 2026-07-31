@@ -15,6 +15,13 @@ if [[ -z "${METHOD}" || -z "${PATH_PART}" ]]; then
   exit 2
 fi
 
+METHOD_UPPER="$(printf '%s' "${METHOD}" | tr '[:lower:]' '[:upper:]')"
+if [[ "${MULTICA_ACCESS_MODE:-}" == "ro" && "${METHOD_UPPER}" != "GET" && "${METHOD_UPPER}" != "HEAD" ]]; then
+  echo "ha-api: write methods are blocked in the read-only Multica add-on (${METHOD_UPPER})" >&2
+  echo "ha-api: note: SUPERVISOR_TOKEN is still present — filesystem RO does not revoke Core API rights" >&2
+  exit 1
+fi
+
 TOKEN="${HA_TOKEN:-${SUPERVISOR_TOKEN:-}}"
 BASE="${HA_URL:-http://supervisor/core/api}"
 BASE="${BASE%/}"
@@ -26,7 +33,7 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 
 exec curl -fsS \
-  -X "${METHOD}" \
+  -X "${METHOD_UPPER}" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   "$@" \

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Permanent configuration / auth failures — s6 finish will not restart these.
+readonly EX_CONFIG=78
+
 OPTIONS_FILE="/data/options.json"
 ACCESS_MODE="${MULTICA_ACCESS_MODE:-rw}"
 DEFAULT_DEVICE_NAME="${MULTICA_DEFAULT_DEVICE_NAME:-Home Assistant}"
@@ -18,6 +21,11 @@ export PATH="/usr/local/bin:/data/bin:${HOME}/.local/bin:${PATH}"
 log() {
   local level="$1"; shift
   echo "[multica-${ACCESS_MODE}] ${level}: $*"
+}
+
+die_config() {
+  log error "$*"
+  exit "${EX_CONFIG}"
 }
 
 option() {
@@ -46,11 +54,15 @@ option_or_default() {
 }
 
 write_agent_context() {
-  local access_label
+  local access_label share_access media_access
   if [[ "${ACCESS_MODE}" == "ro" ]]; then
     access_label="read-only"
+    share_access="read-only"
+    media_access="read-only"
   else
     access_label="read-write"
+    share_access="read-write"
+    media_access="read-write"
   fi
 
   cat >/data/HA_AGENT_CONTEXT.md <<EOF
@@ -63,9 +75,9 @@ This container is a dedicated Multica daemon with a **${access_label}** mount of
 | Path | Access | Purpose |
 |------|--------|---------|
 | \`/config\` | ${access_label} | Home Assistant configuration |
-| \`/share\` | read-write | Shared HA storage |
-| \`/media\` | read-write | Media files |
-| \`/data\` | read-write | This daemon's Multica state |
+| \`/share\` | ${share_access} | Shared HA storage |
+| \`/media\` | ${media_access} | Media files |
+| \`/data\` | read-write | This daemon's Multica state (not HA config) |
 
 Register a Multica \`local_directory\` project resource at \`/config\` on **this** daemon so agents inherit the container's access boundary.
 
@@ -80,6 +92,8 @@ ha-history sensor.temperature
 ha-api GET /states
 \`\`\`
 
+**Boundary note:** filesystem access mode is \`${ACCESS_MODE}\`. The Supervisor token can still call Core API endpoints (including services) unless you use a separate limited-scope HA token. The \`ha-api\` helper blocks non-GET methods when \`MULTICA_ACCESS_MODE=ro\`, but raw \`curl\` with \`SUPERVISOR_TOKEN\` is not revoked by the mount.
+
 Environment:
 
 - \`HA_URL\` — \`http://supervisor/core/api\`
@@ -90,8 +104,7 @@ EOF
 }
 
 if [[ ! -d /config ]]; then
-  log error "Home Assistant config is not mounted at /config"
-  exit 1
+  die_config "Home Assistant config is not mounted at /config"
 fi
 
 export HA_URL="${HA_URL:-http://supervisor/core/api}"
@@ -107,7 +120,6 @@ DEVICE_NAME="$(option_or_default device_name "${DEFAULT_DEVICE_NAME}")"
 RUNTIME_NAME="$(option_or_default runtime_name "${DEFAULT_RUNTIME_NAME}")"
 ANTHROPIC_API_KEY_OPT="$(option anthropic_api_key "")"
 MAX_TASKS="$(option max_concurrent_tasks "2")"
-LOG_LEVEL="$(option log_level "info")"
 
 export MULTICA_DAEMON_DEVICE_NAME="${DEVICE_NAME}"
 export MULTICA_DAEMON_MAX_CONCURRENT_TASKS="${MAX_TASKS}"
@@ -122,8 +134,7 @@ fi
 write_agent_context
 
 if ! command -v multica >/dev/null; then
-  log error "multica CLI missing from image"
-  exit 1
+  die_config "multica CLI missing from image"
 fi
 
 if ! command -v claude >/dev/null; then
@@ -161,17 +172,17 @@ if [[ -n "${WORKSPACE_ID}" ]]; then
   mv "${tmp}" /data/.multica/config.json
 fi
 
-if multica auth status >/dev/null 2>&1; then
-  log info "Already authenticated with Multica"
-elif [[ -n "${MULTICA_TOKEN}" ]]; then
-  log info "Logging in with Multica personal access token"
+# Prefer the add-on option token when set so rotations take effect. Fall back to
+# credentials already persisted under /data from a previous successful login.
+if [[ -n "${MULTICA_TOKEN}" ]]; then
+  log info "Authenticating with Multica personal access token from add-on options"
   if ! multica login --token "${MULTICA_TOKEN}"; then
-    log error "multica login failed — check the Multica token option"
-    exit 1
+    die_config "multica login failed — check the Multica token option"
   fi
+elif multica auth status >/dev/null 2>&1; then
+  log info "Using existing Multica credentials stored in /data"
 else
-  log error "No Multica credentials. Set the 'multica_token' add-on option (Settings → API Tokens on Multica)."
-  exit 1
+  die_config "No Multica credentials. Set the 'multica_token' add-on option (Settings → API Tokens on Multica)."
 fi
 
 if [[ -n "${WORKSPACE_ID}" ]]; then
@@ -188,6 +199,6 @@ if [[ -n "${RUNTIME_NAME}" ]]; then
   DAEMON_ARGS+=(--runtime-name "${RUNTIME_NAME}")
 fi
 
-log info "Starting Multica daemon (access=${ACCESS_MODE}, device=${DEVICE_NAME}, log_level=${LOG_LEVEL})"
+log info "Starting Multica daemon (access=${ACCESS_MODE}, device=${DEVICE_NAME})"
 log info "Config mount: /config (${ACCESS_MODE}) | HA API: ${HA_URL}"
 exec multica "${DAEMON_ARGS[@]}"

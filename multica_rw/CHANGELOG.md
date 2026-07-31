@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Require Multica token; stop s6 crash-loops on auth/config failure
+- Pin Multica + Claude downloads with SHA256 verification
+- Re-login when token option is set (token rotation)
+- Remove unused log_level option
+
 ## 0.2.0
 
 - Dedicated read-write Multica daemon container

@@ -1,7 +1,7 @@
 configuration:
   multica_token:
     name: Multica token
-    description: Personal access token (mul_…) from Multica Settings → API Tokens
+    description: Required personal access token (mul_…) from Multica Settings → API Tokens
   server_url:
     name: Server URL
     description: Multica API base URL
@@ -23,6 +23,3 @@ configuration:
   max_concurrent_tasks:
     name: Max concurrent tasks
     description: Maximum agent tasks this daemon runs in parallel
-  log_level:
-    name: Log level
-    description: Add-on log verbosity
