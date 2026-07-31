@@ -1,5 +1,5 @@
 name: Multica Daemon (read-write)
-version: "0.3.2"
+version: "0.3.3"
 slug: multica_rw
 description: >-
   Multica agent daemon with read-write Home Assistant config mounts and Claude +
@@ -8,6 +8,8 @@ url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_rw
 arch:
   - aarch64
   - amd64
+# Required for s6-overlay v3: Docker must not inject tini as PID 1.
+init: false
 startup: services
 boot: auto
 hassio_api: true
