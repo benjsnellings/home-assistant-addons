@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6
+
+- Pi updater: skip npm install when already current; raise timeout to 15m (SIGTERM was our 3m cap)
+
 ## 0.3.5
 
 - Version bump so Home Assistant Supervisor can offer/apply the 0.3.4 boot fix as a clean update
