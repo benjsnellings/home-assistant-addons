@@ -1,25 +1,20 @@
-name: Multica Daemon
-version: "0.1.0"
-slug: multica_daemon
+name: Multica Daemon (read-write)
+version: "0.2.0"
+slug: multica_rw
 description: >-
-  Runs the Multica agent daemon inside Home Assistant with dual Home Assistant
-  config mounts (read-only and read-write) plus Core API access for states and
-  history.
-url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_daemon
+  Multica agent daemon with a read-write Home Assistant config mount. Use this
+  for agents that are allowed to edit configuration files and still query
+  states/history.
+url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_rw
 arch:
   - aarch64
   - amd64
-init: false
 startup: services
 boot: auto
 hassio_api: true
 hassio_role: default
 homeassistant_api: true
-privileged:
-  - SYS_ADMIN
 map:
-  # Single Supervisor map for HA config (RW). run.sh also bind-mounts the same
-  # tree read-only at /config-ro so agents can choose RO vs RW local directories.
   - type: homeassistant_config
     read_only: false
     path: /config
@@ -34,16 +29,18 @@ options:
   server_url: "https://api.multica.ai"
   app_url: "https://multica.ai"
   workspace_id: ""
-  device_name: "Home Assistant"
+  device_name: ""
+  runtime_name: ""
   anthropic_api_key: ""
   max_concurrent_tasks: 2
   log_level: info
 schema:
-  multica_token: password
+  multica_token: password?
   server_url: url
   app_url: url
   workspace_id: str?
-  device_name: str
-  anthropic_api_key: password
+  device_name: str?
+  runtime_name: str?
+  anthropic_api_key: password?
   max_concurrent_tasks: int(1,20)
   log_level: list(trace|debug|info|warning|error)

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Thin wrapper around Home Assistant Core API via the Supervisor proxy.
 # Usage: ha-api METHOD PATH [curl args...]
-# Example: ha-api GET /states
-# Example: ha-api GET '/history/period/2026-07-29T00:00:00+00:00?filter_entity_id=sun.sun'
 set -euo pipefail
 
 METHOD="${1:-}"

@@ -2,6 +2,10 @@
 set -euo pipefail
 
 OPTIONS_FILE="/data/options.json"
+ACCESS_MODE="${MULTICA_ACCESS_MODE:-rw}"
+DEFAULT_DEVICE_NAME="${MULTICA_DEFAULT_DEVICE_NAME:-Home Assistant}"
+DEFAULT_RUNTIME_NAME="${MULTICA_DEFAULT_RUNTIME_NAME:-}"
+
 export HOME="/data"
 export XDG_CONFIG_HOME="/data/.config"
 export XDG_DATA_HOME="/data/.local/share"
@@ -13,7 +17,7 @@ export PATH="/usr/local/bin:/data/bin:${HOME}/.local/bin:${PATH}"
 
 log() {
   local level="$1"; shift
-  echo "[multica-daemon] ${level}: $*"
+  echo "[multica-${ACCESS_MODE}] ${level}: $*"
 }
 
 option() {
@@ -28,84 +32,88 @@ option() {
   fi
 }
 
-ensure_config_ro() {
-  if [[ ! -d /config ]]; then
-    log warning "Home Assistant config is not mounted at /config"
-    return 0
-  fi
-
-  if mountpoint -q /config-ro 2>/dev/null; then
-    log info "Read-only Home Assistant config available at /config-ro"
-    return 0
-  fi
-
-  log info "Creating read-only bind mount of /config at /config-ro"
-  mkdir -p /config-ro
-  if mount --bind /config /config-ro && mount -o remount,ro,bind /config-ro; then
-    log info "Read-only mount ready at /config-ro"
+# Empty / whitespace option → fall back to packaged default.
+option_or_default() {
+  local key="$1"
+  local packaged_default="$2"
+  local value
+  value="$(option "${key}" "")"
+  if [[ -z "${value// }" ]]; then
+    printf '%s' "${packaged_default}"
   else
-    log error "Failed to create /config-ro read-only bind mount (needs SYS_ADMIN)"
-    exit 1
+    printf '%s' "${value}"
   fi
 }
 
 write_agent_context() {
-  cat >/data/HA_AGENT_CONTEXT.md <<'EOF'
-# Home Assistant Multica context
+  local access_label
+  if [[ "${ACCESS_MODE}" == "ro" ]]; then
+    access_label="read-only"
+  else
+    access_label="read-write"
+  fi
 
-This add-on exposes two config filesystems and the Home Assistant Core API.
+  cat >/data/HA_AGENT_CONTEXT.md <<EOF
+# Home Assistant Multica context (${access_label})
 
-## Filesystems
+This container is a dedicated Multica daemon with a **${access_label}** mount of the Home Assistant configuration.
+
+## Filesystem
 
 | Path | Access | Purpose |
 |------|--------|---------|
-| `/config` | read-write | Edit Home Assistant configuration |
-| `/config-ro` | read-only | Inspect configuration without write risk |
-| `/share` | read-write | Shared HA storage |
-| `/media` | read-write | Media files |
-| `/data` | read-write | Multica daemon state (persists across restarts) |
+| \`/config\` | ${access_label} | Home Assistant configuration |
+| \`/share\` | read-write | Shared HA storage |
+| \`/media\` | read-write | Media files |
+| \`/data\` | read-write | This daemon's Multica state |
 
-Register Multica `local_directory` project resources against `/config-ro` and `/config` on this daemon so agents land in the right mount.
+Register a Multica \`local_directory\` project resource at \`/config\` on **this** daemon so agents inherit the container's access boundary.
 
 ## Home Assistant API
 
-`homeassistant_api` is enabled. Use the helpers on PATH:
+\`homeassistant_api\` is enabled. Helpers on PATH:
 
-```bash
-ha-states                         # all current states
-ha-states sensor.temperature      # one entity
-ha-history sensor.temperature     # history (default last 24h)
+\`\`\`bash
+ha-states
+ha-states sensor.temperature
+ha-history sensor.temperature
 ha-api GET /states
-ha-api GET '/history/period/2026-07-29T00:00:00+00:00?filter_entity_id=sensor.temperature'
-```
+\`\`\`
 
 Environment:
 
-- `HA_URL` — `http://supervisor/core/api`
-- `SUPERVISOR_TOKEN` / `HA_TOKEN` — bearer token for Core API
-- `MULTICA_HA_CONFIG_RW` — `/config`
-- `MULTICA_HA_CONFIG_RO` — `/config-ro`
+- \`HA_URL\` — \`http://supervisor/core/api\`
+- \`SUPERVISOR_TOKEN\` / \`HA_TOKEN\` — bearer token for Core API
+- \`MULTICA_ACCESS_MODE\` — \`${ACCESS_MODE}\`
+- \`MULTICA_HA_CONFIG\` — \`/config\`
 EOF
 }
 
-ensure_config_ro
+if [[ ! -d /config ]]; then
+  log error "Home Assistant config is not mounted at /config"
+  exit 1
+fi
 
 export HA_URL="${HA_URL:-http://supervisor/core/api}"
 export HA_TOKEN="${SUPERVISOR_TOKEN:-}"
-export MULTICA_HA_CONFIG_RW="/config"
-export MULTICA_HA_CONFIG_RO="/config-ro"
+export MULTICA_HA_CONFIG="/config"
+export MULTICA_ACCESS_MODE="${ACCESS_MODE}"
 
 MULTICA_TOKEN="$(option multica_token "")"
 SERVER_URL="$(option server_url "https://api.multica.ai")"
 APP_URL="$(option app_url "https://multica.ai")"
 WORKSPACE_ID="$(option workspace_id "")"
-DEVICE_NAME="$(option device_name "Home Assistant")"
+DEVICE_NAME="$(option_or_default device_name "${DEFAULT_DEVICE_NAME}")"
+RUNTIME_NAME="$(option_or_default runtime_name "${DEFAULT_RUNTIME_NAME}")"
 ANTHROPIC_API_KEY_OPT="$(option anthropic_api_key "")"
 MAX_TASKS="$(option max_concurrent_tasks "2")"
 LOG_LEVEL="$(option log_level "info")"
 
 export MULTICA_DAEMON_DEVICE_NAME="${DEVICE_NAME}"
 export MULTICA_DAEMON_MAX_CONCURRENT_TASKS="${MAX_TASKS}"
+if [[ -n "${RUNTIME_NAME}" ]]; then
+  export MULTICA_AGENT_RUNTIME_NAME="${RUNTIME_NAME}"
+fi
 
 if [[ -n "${ANTHROPIC_API_KEY_OPT}" ]]; then
   export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY_OPT}"
@@ -128,7 +136,6 @@ if [[ ! -f /data/.multica/config.json ]]; then
   printf '%s\n' '{}' > /data/.multica/config.json
 fi
 
-# Merge non-secret settings without wiping an existing auth token.
 tmp="$(mktemp)"
 jq \
   --arg server_url "${SERVER_URL}" \
@@ -141,6 +148,12 @@ jq \
    | .max_concurrent_tasks = $max_tasks' \
   /data/.multica/config.json >"${tmp}"
 mv "${tmp}" /data/.multica/config.json
+
+if [[ -n "${RUNTIME_NAME}" ]]; then
+  tmp="$(mktemp)"
+  jq --arg name "${RUNTIME_NAME}" '.runtime_name = $name' /data/.multica/config.json >"${tmp}"
+  mv "${tmp}" /data/.multica/config.json
+fi
 
 if [[ -n "${WORKSPACE_ID}" ]]; then
   tmp="$(mktemp)"
@@ -166,8 +179,15 @@ if [[ -n "${WORKSPACE_ID}" ]]; then
     log warning "Could not switch workspace to ${WORKSPACE_ID}"
 fi
 
-log info "Starting Multica daemon in foreground (log_level=${LOG_LEVEL})"
-log info "RW config: /config | RO config: /config-ro | HA API: ${HA_URL}"
-exec multica daemon start --foreground \
-  --device-name "${DEVICE_NAME}" \
+DAEMON_ARGS=(
+  daemon start --foreground
+  --device-name "${DEVICE_NAME}"
   --max-concurrent-tasks "${MAX_TASKS}"
+)
+if [[ -n "${RUNTIME_NAME}" ]]; then
+  DAEMON_ARGS+=(--runtime-name "${RUNTIME_NAME}")
+fi
+
+log info "Starting Multica daemon (access=${ACCESS_MODE}, device=${DEVICE_NAME}, log_level=${LOG_LEVEL})"
+log info "Config mount: /config (${ACCESS_MODE}) | HA API: ${HA_URL}"
+exec multica "${DAEMON_ARGS[@]}"

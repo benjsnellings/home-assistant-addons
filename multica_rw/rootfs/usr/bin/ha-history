@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Print Home Assistant history for one or more entities.
+# Usage: ha-history <entity_id>[,entity_id...] [ISO8601_start]
+# Default start: 24 hours ago (UTC).
+set -euo pipefail
+
+ENTITIES="${1:-}"
+START="${2:-}"
+
+if [[ -z "${ENTITIES}" ]]; then
+  echo "Usage: ha-history <entity_id>[,entity_id...] [ISO8601_start]" >&2
+  exit 2
+fi
+
+if [[ -z "${START}" ]]; then
+  START="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%S+00:00)"
+fi
+
+ha-api GET "/history/period/${START}?filter_entity_id=${ENTITIES}&minimal_response"

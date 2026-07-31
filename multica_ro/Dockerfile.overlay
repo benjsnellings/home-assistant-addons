@@ -1,0 +1,6 @@
+
+# Access-mode defaults for this add-on variant (appended by sync-addons.sh)
+ENV \
+    MULTICA_ACCESS_MODE=ro \
+    MULTICA_DEFAULT_DEVICE_NAME="HA Config (read-only)" \
+    MULTICA_DEFAULT_RUNTIME_NAME="Claude (HA read-only)"

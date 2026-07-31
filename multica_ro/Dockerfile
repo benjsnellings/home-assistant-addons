@@ -49,14 +49,23 @@ RUN \
 
 COPY rootfs /
 COPY run.sh /run.sh
-RUN chmod a+x /run.sh /usr/bin/ha-api /usr/bin/ha-states /usr/bin/ha-history
+RUN chmod a+x /run.sh \
+      /usr/bin/ha-api \
+      /usr/bin/ha-states \
+      /usr/bin/ha-history \
+      /etc/services.d/multica/run \
+      /etc/services.d/multica/finish
 
 ENV \
     HOME=/data \
     PATH="/usr/local/bin:/usr/bin:/bin" \
-    MULTICA_HA_CONFIG_RW=/config \
-    MULTICA_HA_CONFIG_RO=/config-ro \
-    HA_URL=http://supervisor/core/api
+    HA_URL=http://supervisor/core/api \
+    S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
 
 WORKDIR /data
-CMD ["/run.sh"]
+
+# Access-mode defaults for this add-on variant (appended by sync-addons.sh)
+ENV \
+    MULTICA_ACCESS_MODE=ro \
+    MULTICA_DEFAULT_DEVICE_NAME="HA Config (read-only)" \
+    MULTICA_DEFAULT_RUNTIME_NAME="Claude (HA read-only)"
