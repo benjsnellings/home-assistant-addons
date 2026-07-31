@@ -7,8 +7,8 @@ log() { echo "[tool-updater] $*"; }
 
 ARCH_RAW="$(uname -m)"
 case "${ARCH_RAW}" in
-  x86_64|amd64) CLAUDE_PLATFORM="linux-x64-musl"; CURSOR_ARCH="x64" ;;
-  aarch64|arm64) CLAUDE_PLATFORM="linux-arm64-musl"; CURSOR_ARCH="arm64" ;;
+  x86_64|amd64) CLAUDE_PLATFORM="linux-x64"; CURSOR_ARCH="x64" ;;
+  aarch64|arm64) CLAUDE_PLATFORM="linux-arm64"; CURSOR_ARCH="arm64" ;;
   *) log "unsupported arch ${ARCH_RAW}"; exit 0 ;;
 esac
 
@@ -64,7 +64,6 @@ update_pi() {
     log "npm missing; skip Pi update"; return 0
   fi
   if npm install -g --omit=dev @mariozechner/pi-coding-agent@latest; then
-    # Ensure pi is on PATH for Multica detection
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
     fi
