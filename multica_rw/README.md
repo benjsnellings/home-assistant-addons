@@ -1,14 +1,15 @@
 # Multica Daemon (read-write)
 
-Separate Multica daemon container whose Home Assistant `/config` mount is **read-write**.
+Read-write HA `/config`, plus `/workspace` for agent scratch.
 
-Default Multica names (override in add-on options):
+Ships **Claude Code**, **Cursor Agent**, and **Pi** (OpenRouter). CLIs refresh on start and every 6 hours.
 
-| Field | Default |
-|-------|---------|
-| `device_name` | `HA Config (read-write)` |
-| `runtime_name` | `Claude (HA read-write)` |
+| Option | Purpose |
+|--------|---------|
+| `multica_token` | required |
+| `anthropic_api_key` | Claude plan/API |
+| `cursor_api_key` | Cursor plan (headless) |
+| `openrouter_api_key` | Pi → OpenRouter |
+| `device_name` | default `HA Config (read-write)` |
 
-`multica_token` is required. Leave name options blank to keep the defaults.
-
-See the repository README for install steps and how this pairs with the read-only add-on.
+Leave `runtime_name` blank so all three tools register as separate Multica runtimes.

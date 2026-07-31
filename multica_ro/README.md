@@ -1,14 +1,15 @@
 # Multica Daemon (read-only)
 
-Separate Multica daemon container with **read-only** `/config`, `/share`, and `/media`.
+Read-only HA `/config` (and share/media), plus a **writable** `/workspace` for Multica agent workdirs.
 
-Default Multica names (override in add-on options):
+Ships **Claude Code**, **Cursor Agent**, and **Pi** (OpenRouter). CLIs refresh on start and every 6 hours.
 
-| Field | Default |
-|-------|---------|
-| `device_name` | `HA Config (read-only)` |
-| `runtime_name` | `Claude (HA read-only)` |
+| Option | Purpose |
+|--------|---------|
+| `multica_token` | required |
+| `anthropic_api_key` | Claude plan/API |
+| `cursor_api_key` | Cursor plan (headless) |
+| `openrouter_api_key` | Pi → OpenRouter |
+| `device_name` | default `HA Config (read-only)` |
 
-`multica_token` is required. Leave name options blank to keep the defaults.
-
-See the repository README for install steps and how this pairs with the read-write add-on.
+Point Multica `local_directory` at `/workspace` on this daemon.
