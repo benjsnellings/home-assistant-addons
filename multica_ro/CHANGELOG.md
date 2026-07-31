@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Install Node.js 22 from official binaries (bookworm apt Node 18 cannot run Pi)
+- Switch Pi package to `@earendil-works/pi-coding-agent`
+
 ## 0.3.1
 
 - Switch to Debian bookworm base (glibc) so Cursor Agent's bundled Node works

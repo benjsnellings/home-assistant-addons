@@ -63,7 +63,7 @@ update_pi() {
   if ! command -v npm >/dev/null; then
     log "npm missing; skip Pi update"; return 0
   fi
-  if npm install -g --omit=dev @mariozechner/pi-coding-agent@latest; then
+  if npm install -g --omit=dev @earendil-works/pi-coding-agent@latest; then
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
     fi
