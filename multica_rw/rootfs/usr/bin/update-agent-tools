@@ -70,6 +70,12 @@ update_cursor() {
   export HOME="${old_home}"
 }
 
+pi_installed_version() {
+  # e.g. "/usr/local/lib/.../node_modules/@earendil-works/pi-coding-agent@0.83.0"
+  npm ls -g --depth=0 --json @earendil-works/pi-coding-agent 2>/dev/null \
+    | jq -r '.dependencies["@earendil-works/pi-coding-agent"].version // empty'
+}
+
 update_pi() {
   log "Updating Pi coding agent…"
   if ! command -v npm >/dev/null; then
@@ -77,8 +83,23 @@ update_pi() {
   fi
   export npm_config_cache=/data/.npm
   export npm_config_update_notifier=false
-  # Prefer offline when possible; audit/fund slow startup on constrained HA hosts.
-  if run_timeout 180 npm install -g --omit=dev --no-audit --no-fund \
+  export npm_config_fund=false
+  export npm_config_audit=false
+
+  local installed latest
+  installed="$(pi_installed_version || true)"
+  latest="$(run_timeout 60 npm view @earendil-works/pi-coding-agent version 2>/dev/null || true)"
+  if [[ -n "${installed}" && -n "${latest}" && "${installed}" == "${latest}" ]]; then
+    log "Pi already at ${installed}; skip npm install"
+    if command -v pi >/dev/null; then
+      ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
+    fi
+    return 0
+  fi
+
+  # Full npm tree is large (~13MB + deps); HA CPUs often exceed 3 minutes.
+  log "Pi ${installed:-none} → ${latest:-latest} (may take several minutes)…"
+  if run_timeout 900 npm install -g --omit=dev --no-audit --no-fund \
       @earendil-works/pi-coding-agent@latest; then
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
