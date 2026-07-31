@@ -1,3 +1,5 @@
 #!/command/with-contenv bash
-# Refresh agent CLIs before the Multica daemon starts.
-exec /usr/bin/update-agent-tools
+# Do NOT run full Claude/Cursor/Pi updates here — npm/curl downloads can hang and
+# Supervisor will kill the add-on mid-boot. Image already ships working CLIs;
+# the tool-updater s6 service refreshes them in the background after start.
+exit 0

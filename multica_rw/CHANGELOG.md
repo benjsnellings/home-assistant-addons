@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+
+- Stop running Claude/Cursor/Pi updates in cont-init (Pi `npm install` hung and Supervisor restarted the add-on)
+- Refresh tools in the background tool-updater service after boot, with per-step timeouts
+
 ## 0.3.3
 
 - Set `init: false` so s6-overlay can be PID 1 (fixes `s6-overlay-suexec: fatal: can only run as pid 1`)
