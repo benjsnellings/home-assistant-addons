@@ -1,5 +1,5 @@
 name: Multica Daemon (read-only)
-version: "0.3.0"
+version: "0.3.1"
 slug: multica_ro
 description: >-
   Multica agent daemon with read-only Home Assistant config/share/media mounts,

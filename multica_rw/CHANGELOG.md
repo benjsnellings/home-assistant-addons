@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Switch to Debian bookworm base (glibc) so Cursor Agent's bundled Node works
+- Use glibc Claude binaries to match the new base
+
 ## 0.3.0
 
 - Install Claude Code, Cursor Agent, and Pi; keep them current via start + 6h update hooks

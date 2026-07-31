@@ -1,42 +1,44 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-debian:bookworm
 FROM ${BUILD_FROM}
 
-ARG BUILD_ARCH
+ARG BUILD_ARCH=amd64
 ARG MULTICA_VERSION=0.4.15
 ARG CLAUDE_VERSION=2.1.220
-ARG CLAUDE_SHA256_X64=f1c20514a3571cdf9982e25c490042d740ed7cfed3f00c64ba92dc7ec47c3c5b
-ARG CLAUDE_SHA256_ARM64=5eb2697a1500c1b8736e53fd696392196dc6758cf1d470c64d8d2a2fd1629eeb
+# Pinned SHA256 for Claude glibc binaries (Cursor Agent also requires glibc).
+ARG CLAUDE_SHA256_X64=674f61f20ff306f3100cf9200e4c36c4b70278b5bef2884549819b942a89c863
+ARG CLAUDE_SHA256_ARM64=159e4a51d796f3bf14677577100f7efb845611b1ceaf0c30cbd8d4650d942185
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ENV HOME=/root
+ENV HOME=/root \
+    DEBIAN_FRONTEND=noninteractive
 
 # Seed Multica + Claude + Cursor + Pi. Runtime update-agent-tools keeps CLIs current.
+# Debian/glibc base is required: Cursor Agent's bundled Node needs fcntl64 (fails on Alpine/musl).
 RUN \
-    apk add --no-cache \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
         bash \
         ca-certificates \
-        coreutils \
         curl \
-        gcompat \
         git \
         jq \
-        libstdc++ \
         nodejs \
         npm \
         openssh-client \
         tar \
-        tzdata \
+        xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
     \
     && case "${BUILD_ARCH}" in \
          amd64) \
            MULTICA_ARCH="amd64" \
-           CLAUDE_PLATFORM="linux-x64-musl" \
+           CLAUDE_PLATFORM="linux-x64" \
            CLAUDE_SHA256="${CLAUDE_SHA256_X64}" \
            ;; \
          aarch64) \
            MULTICA_ARCH="arm64" \
-           CLAUDE_PLATFORM="linux-arm64-musl" \
+           CLAUDE_PLATFORM="linux-arm64" \
            CLAUDE_SHA256="${CLAUDE_SHA256_ARM64}" \
            ;; \
          *) echo "Unsupported arch: ${BUILD_ARCH}" >&2; exit 1 ;; \
