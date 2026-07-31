@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5
+
+- Version bump so Home Assistant Supervisor can offer/apply the 0.3.4 boot fix as a clean update
+
 ## 0.3.4
 
 - Stop running Claude/Cursor/Pi updates in cont-init (Pi `npm install` hung and Supervisor restarted the add-on)
