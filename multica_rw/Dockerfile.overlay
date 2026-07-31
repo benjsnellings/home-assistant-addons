@@ -3,4 +3,4 @@
 ENV \
     MULTICA_ACCESS_MODE=rw \
     MULTICA_DEFAULT_DEVICE_NAME="HA Config (read-write)" \
-    MULTICA_DEFAULT_RUNTIME_NAME="Claude (HA read-write)"
+    MULTICA_DEFAULT_RUNTIME_NAME=""

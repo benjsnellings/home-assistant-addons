@@ -1,10 +1,9 @@
 name: Multica Daemon (read-write)
-version: "0.2.1"
+version: "0.3.0"
 slug: multica_rw
 description: >-
-  Multica agent daemon with a read-write Home Assistant config mount. Use for
-  agents that are allowed to edit configuration files and still query
-  states/history.
+  Multica agent daemon with read-write Home Assistant config mounts and Claude +
+  Cursor + Pi runtimes (OpenRouter for Pi).
 url: https://github.com/benjsnellings/home-assistant-addons/tree/main/multica_rw
 arch:
   - aarch64
@@ -32,6 +31,9 @@ options:
   device_name: ""
   runtime_name: ""
   anthropic_api_key: ""
+  cursor_api_key: ""
+  openrouter_api_key: ""
+  openrouter_model: "anthropic/claude-sonnet-4"
   max_concurrent_tasks: 2
 schema:
   multica_token: password
@@ -41,4 +43,7 @@ schema:
   device_name: str?
   runtime_name: str?
   anthropic_api_key: password?
+  cursor_api_key: password?
+  openrouter_api_key: password?
+  openrouter_model: str?
   max_concurrent_tasks: int(1,20)

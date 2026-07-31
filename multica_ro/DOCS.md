@@ -5,24 +5,28 @@
 | Option | Default when blank | Description |
 |--------|--------------------|-------------|
 | `multica_token` | **required** | Multica PAT (`mul_…`) |
-| `server_url` | `https://api.multica.ai` | Multica API |
-| `app_url` | `https://multica.ai` | Multica app |
-| `workspace_id` | — | Optional workspace |
-| `device_name` | `HA Config (read-only)` | Daemon / computer name in Multica |
-| `runtime_name` | `Claude (HA read-only)` | Runtime display name |
-| `anthropic_api_key` | — | Headless Claude auth |
+| `server_url` / `app_url` | Multica Cloud | Self-host override |
+| `device_name` | `HA Config (read-only)` | Computer name in Multica |
+| `runtime_name` | *(empty)* | Leave blank so Claude, Cursor, and Pi each register |
+| `anthropic_api_key` | — | Claude Code API / plan-linked key |
+| `cursor_api_key` | — | Cursor Agent API key (Cursor plan) |
+| `openrouter_api_key` | — | Pi → OpenRouter |
+| `openrouter_model` | `anthropic/claude-sonnet-4` | Default Pi model on OpenRouter |
 | `max_concurrent_tasks` | `2` | Concurrency |
 
 ## Access boundary
 
-Supervisor maps `/config`, `/share`, and `/media` **read-only**. Agents on this daemon cannot modify those trees. Add-on state under `/data` remains writable (Multica credentials only).
+| Path | Access |
+|------|--------|
+| `/config`, `/share`, `/media` | **read-only** |
+| `/workspace` → `/data/workspace` | **read-write** (use this for Multica `local_directory`) |
 
-Filesystem RO is not the same as a read-only Home Assistant API: `homeassistant_api` still injects `SUPERVISOR_TOKEN`, which can call Core services. Prefer this add-on for config-file safety; for API-level least privilege, use a dedicated limited HA token in a future iteration. The bundled `ha-api` helper refuses non-GET methods in this add-on.
+## Runtimes & updates
 
-## Lifecycle (not systemd)
+Image seeds Claude Code, Cursor Agent (`cursor-agent`), and Pi. On every start (and every 6h) `update-agent-tools` refreshes them to the latest verified releases.
 
-Home Assistant OS does not expose host systemd to add-ons. The Supervisor starts/stops/restarts this container (`boot: auto`). Inside the container, s6-overlay restarts Multica on unexpected crashes, but **does not** loop on configuration/auth failures (fix the token and restart the add-on).
+## Plan / provider login
 
-## HA API
-
-`ha-states`, `ha-history`, and `ha-api` work the same as the read-write add-on.
+- **Claude:** set `anthropic_api_key` (Console/API key tied to your plan), or persist an interactive `claude` login under `/data/.claude`.
+- **Cursor:** set `cursor_api_key` from Cursor dashboard (headless plan auth).
+- **Pi / OpenRouter:** set `openrouter_api_key` (writes `~/.pi/agent/auth.json` + default provider settings).

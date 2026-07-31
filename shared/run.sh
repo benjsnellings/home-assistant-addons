@@ -14,9 +14,10 @@ export XDG_CONFIG_HOME="/data/.config"
 export XDG_DATA_HOME="/data/.local/share"
 export XDG_CACHE_HOME="/data/.cache"
 mkdir -p "${HOME}" "${XDG_CONFIG_HOME}" "${XDG_DATA_HOME}" "${XDG_CACHE_HOME}" \
-  /data/.multica /data/.claude /data/bin
+  /data/.multica /data/.claude /data/bin /data/workspace /data/.pi/agent \
+  /data/.local/bin /data/.local/share
 
-export PATH="/usr/local/bin:/data/bin:${HOME}/.local/bin:${PATH}"
+export PATH="/data/bin:/data/.local/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
 
 log() {
   local level="$1"; shift
@@ -40,7 +41,6 @@ option() {
   fi
 }
 
-# Empty / whitespace option → fall back to packaged default.
 option_or_default() {
   local key="$1"
   local packaged_default="$2"
@@ -53,55 +53,104 @@ option_or_default() {
   fi
 }
 
+ensure_workspace() {
+  mkdir -p /data/workspace
+  if [[ ! -e /workspace ]]; then
+    ln -s /data/workspace /workspace
+  elif [[ -L /workspace ]]; then
+    ln -sfn /data/workspace /workspace
+  fi
+}
+
 write_agent_context() {
-  local access_label share_access media_access
+  local access_label share_access media_access local_dir_hint
   if [[ "${ACCESS_MODE}" == "ro" ]]; then
     access_label="read-only"
     share_access="read-only"
     media_access="read-only"
+    local_dir_hint="/workspace (writable). Read HA config from /config (read-only)."
   else
     access_label="read-write"
     share_access="read-write"
     media_access="read-write"
+    local_dir_hint="/config (HA config, writable) or /workspace (agent scratch)."
   fi
 
   cat >/data/HA_AGENT_CONTEXT.md <<EOF
 # Home Assistant Multica context (${access_label})
 
-This container is a dedicated Multica daemon with a **${access_label}** mount of the Home Assistant configuration.
+This container runs Multica with Claude Code, Cursor Agent, and Pi CLIs.
 
 ## Filesystem
 
 | Path | Access | Purpose |
 |------|--------|---------|
 | \`/config\` | ${access_label} | Home Assistant configuration |
+| \`/workspace\` | read-write | Multica agent workdirs / scratch (persisted in \`/data/workspace\`) |
 | \`/share\` | ${share_access} | Shared HA storage |
 | \`/media\` | ${media_access} | Media files |
-| \`/data\` | read-write | This daemon's Multica state (not HA config) |
+| \`/data\` | read-write | Daemon credentials + tool state |
 
-Register a Multica \`local_directory\` project resource at \`/config\` on **this** daemon so agents inherit the container's access boundary.
+**Recommended Multica \`local_directory\`:** ${local_dir_hint}
+
+## Runtimes
+
+- \`claude\` — Claude Code (subscription/API via add-on options)
+- \`cursor-agent\` — Cursor Agent CLI (Cursor plan via \`cursor_api_key\`)
+- \`pi\` — Pi coding agent (OpenRouter via \`openrouter_api_key\`)
+
+CLIs auto-update on start and every \`${TOOL_UPDATE_INTERVAL_SECONDS:-21600}\` seconds.
 
 ## Home Assistant API
 
-\`homeassistant_api\` is enabled. Helpers on PATH:
-
 \`\`\`bash
 ha-states
-ha-states sensor.temperature
 ha-history sensor.temperature
 ha-api GET /states
 \`\`\`
 
-**Boundary note:** filesystem access mode is \`${ACCESS_MODE}\`. The Supervisor token can still call Core API endpoints (including services) unless you use a separate limited-scope HA token. The \`ha-api\` helper blocks non-GET methods when \`MULTICA_ACCESS_MODE=ro\`, but raw \`curl\` with \`SUPERVISOR_TOKEN\` is not revoked by the mount.
+Filesystem mode is \`${ACCESS_MODE}\`. \`ha-api\` blocks non-GET when RO; \`SUPERVISOR_TOKEN\` still allows Core API calls via raw curl.
 
-Environment:
-
-- \`HA_URL\` — \`http://supervisor/core/api\`
-- \`SUPERVISOR_TOKEN\` / \`HA_TOKEN\` — bearer token for Core API
-- \`MULTICA_ACCESS_MODE\` — \`${ACCESS_MODE}\`
-- \`MULTICA_HA_CONFIG\` — \`/config\`
+Environment: \`HA_URL\`, \`HA_TOKEN\`/\`SUPERVISOR_TOKEN\`, \`MULTICA_ACCESS_MODE\`, \`MULTICA_HA_CONFIG=/config\`, \`MULTICA_WORKSPACE=/workspace\`
 EOF
 }
+
+configure_provider_auth() {
+  local anthropic_key cursor_key openrouter_key openrouter_model
+  anthropic_key="$(option anthropic_api_key "")"
+  cursor_key="$(option cursor_api_key "")"
+  openrouter_key="$(option openrouter_api_key "")"
+  openrouter_model="$(option openrouter_model "anthropic/claude-sonnet-4")"
+
+  if [[ -n "${anthropic_key}" ]]; then
+    export ANTHROPIC_API_KEY="${anthropic_key}"
+    log info "ANTHROPIC_API_KEY set for Claude Code"
+  else
+    log info "No anthropic_api_key — Claude subscription login must already exist under /data/.claude (run claude auth from a shell if needed)"
+  fi
+
+  if [[ -n "${cursor_key}" ]]; then
+    export CURSOR_API_KEY="${cursor_key}"
+    log info "CURSOR_API_KEY set for Cursor Agent (plan auth)"
+  else
+    log info "No cursor_api_key — Cursor Agent will not authenticate until set"
+  fi
+
+  if [[ -n "${openrouter_key}" ]]; then
+    export OPENROUTER_API_KEY="${openrouter_key}"
+    mkdir -p /data/.pi/agent
+    jq -n --arg key "${openrouter_key}" \
+      '{openrouter: {type: "api_key", key: $key}}' > /data/.pi/agent/auth.json
+    jq -n --arg model "${openrouter_model}" \
+      '{defaultProvider: "openrouter", defaultModel: $model}' > /data/.pi/agent/settings.json
+    chmod 600 /data/.pi/agent/auth.json
+    log info "Pi configured for OpenRouter (model=${openrouter_model})"
+  else
+    log info "No openrouter_api_key — Pi OpenRouter auth not configured"
+  fi
+}
+
+ensure_workspace
 
 if [[ ! -d /config ]]; then
   die_config "Home Assistant config is not mounted at /config"
@@ -110,6 +159,7 @@ fi
 export HA_URL="${HA_URL:-http://supervisor/core/api}"
 export HA_TOKEN="${SUPERVISOR_TOKEN:-}"
 export MULTICA_HA_CONFIG="/config"
+export MULTICA_WORKSPACE="/workspace"
 export MULTICA_ACCESS_MODE="${ACCESS_MODE}"
 
 MULTICA_TOKEN="$(option multica_token "")"
@@ -118,7 +168,6 @@ APP_URL="$(option app_url "https://multica.ai")"
 WORKSPACE_ID="$(option workspace_id "")"
 DEVICE_NAME="$(option_or_default device_name "${DEFAULT_DEVICE_NAME}")"
 RUNTIME_NAME="$(option_or_default runtime_name "${DEFAULT_RUNTIME_NAME}")"
-ANTHROPIC_API_KEY_OPT="$(option anthropic_api_key "")"
 MAX_TASKS="$(option max_concurrent_tasks "2")"
 
 export MULTICA_DAEMON_DEVICE_NAME="${DEVICE_NAME}"
@@ -127,19 +176,20 @@ if [[ -n "${RUNTIME_NAME}" ]]; then
   export MULTICA_AGENT_RUNTIME_NAME="${RUNTIME_NAME}"
 fi
 
-if [[ -n "${ANTHROPIC_API_KEY_OPT}" ]]; then
-  export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY_OPT}"
-fi
-
+configure_provider_auth
 write_agent_context
 
 if ! command -v multica >/dev/null; then
   die_config "multica CLI missing from image"
 fi
 
-if ! command -v claude >/dev/null; then
-  log warning "claude CLI not found on PATH — Multica needs at least one AI coding tool"
-fi
+for tool in claude cursor-agent pi; do
+  if command -v "${tool}" >/dev/null; then
+    log info "runtime tool present: ${tool} ($(${tool} --version 2>/dev/null | head -1 || echo ok))"
+  else
+    log warning "runtime tool missing: ${tool}"
+  fi
+done
 
 log info "Configuring Multica CLI (server=${SERVER_URL})"
 mkdir -p /data/.multica
@@ -172,8 +222,6 @@ if [[ -n "${WORKSPACE_ID}" ]]; then
   mv "${tmp}" /data/.multica/config.json
 fi
 
-# Prefer the add-on option token when set so rotations take effect. Fall back to
-# credentials already persisted under /data from a previous successful login.
 if [[ -n "${MULTICA_TOKEN}" ]]; then
   log info "Authenticating with Multica personal access token from add-on options"
   if ! multica login --token "${MULTICA_TOKEN}"; then
@@ -200,5 +248,5 @@ if [[ -n "${RUNTIME_NAME}" ]]; then
 fi
 
 log info "Starting Multica daemon (access=${ACCESS_MODE}, device=${DEVICE_NAME})"
-log info "Config mount: /config (${ACCESS_MODE}) | HA API: ${HA_URL}"
+log info "HA config: /config (${ACCESS_MODE}) | agent workspace: /workspace (rw) | HA API: ${HA_URL}"
 exec multica "${DAEMON_ARGS[@]}"

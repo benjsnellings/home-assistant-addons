@@ -3,6 +3,17 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
+chmod_scripts() {
+  local base="$1"
+  chmod a+x "${base}/run.sh" 2>/dev/null || true
+  find "${base}/rootfs/usr/bin" -type f -exec chmod a+x {} + 2>/dev/null || true
+  find "${base}/rootfs/etc/services.d" -type f -exec chmod a+x {} + 2>/dev/null || true
+  find "${base}/rootfs/etc/cont-init.d" -type f -exec chmod a+x {} + 2>/dev/null || true
+}
+
+chmod_scripts "${ROOT}/shared"
+chmod a+x "${ROOT}/shared/run.sh"
+
 sync_addon() {
   local dest="$1"
   mkdir -p "${dest}"
@@ -14,16 +25,10 @@ sync_addon() {
     "${dest}/"
   mkdir -p "${dest}/rootfs"
   rsync -a --delete "${ROOT}/shared/rootfs/" "${dest}/rootfs/"
-  # Append access-mode defaults after the shared Dockerfile ENV block via overlay file.
   if [[ -f "${dest}/Dockerfile.overlay" ]]; then
     cat "${dest}/Dockerfile.overlay" >> "${dest}/Dockerfile"
   fi
-  chmod a+x "${dest}/run.sh" \
-    "${dest}/rootfs/usr/bin/ha-api" \
-    "${dest}/rootfs/usr/bin/ha-states" \
-    "${dest}/rootfs/usr/bin/ha-history" \
-    "${dest}/rootfs/etc/services.d/multica/run" \
-    "${dest}/rootfs/etc/services.d/multica/finish"
+  chmod_scripts "${dest}"
   echo "synced ${dest}"
 }
 

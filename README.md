@@ -4,31 +4,29 @@ Repository: https://github.com/benjsnellings/home-assistant-addons
 
 ## Add-ons
 
-Two separate Multica daemon containers so agents get real filesystem access boundaries:
+Two Multica daemon containers with real filesystem boundaries. Each ships **Claude Code**, **Cursor Agent**, and **Pi** (OpenRouter), auto-updated on start and every 6 hours.
 
-| Add-on | Config mount | Default device name | Default runtime name |
-|--------|--------------|---------------------|----------------------|
-| **Multica Daemon (read-only)** | `/config`, `/share`, `/media` RO | `HA Config (read-only)` | `Claude (HA read-only)` |
-| **Multica Daemon (read-write)** | `/config` RW | `HA Config (read-write)` | `Claude (HA read-write)` |
+| Add-on | Config / share / media | Agent workspace | Default device name |
+|--------|------------------------|-----------------|---------------------|
+| **Multica Daemon (read-only)** | read-only | `/workspace` (RW) | `HA Config (read-only)` |
+| **Multica Daemon (read-write)** | RW (ssl RO) | `/workspace` (RW) | `HA Config (read-write)` |
 
-Both can query Home Assistant states/history (`ha-states`, `ha-history`, `ha-api`). Names are overrideable in each add-on's options (blank = packaged default).
+Leave `runtime_name` blank so Multica registers Claude, Cursor, and Pi as separate runtimes.
 
-### Lifecycle
+### Auth options
 
-Home Assistant Supervisor starts/stops these containers (the HAOS equivalent of systemd). Inside each container, s6-overlay supervises the Multica process and restarts it on crash.
+- `anthropic_api_key` — Claude Code / plan-linked API key
+- `cursor_api_key` — Cursor Agent headless plan key
+- `openrouter_api_key` + `openrouter_model` — Pi via OpenRouter
 
-## Install
+### Install
 
 1. HA → **Settings → Add-ons → Add-on Store → ⋮ → Repositories**
 2. Add: `https://github.com/benjsnellings/home-assistant-addons`
-3. Install **both** Multica add-ons (or only the access level you need)
-4. Set `multica_token` on each (same PAT is fine). For self-host, set `server_url` / `app_url`.
-5. Optionally override `device_name` / `runtime_name`
-6. Start them, then point Multica `local_directory` resources at `/config` on each daemon
+3. Install RO and/or RW add-ons, set `multica_token` + provider keys, start
+4. Point Multica `local_directory` at `/workspace` on the RO daemon (and `/config` or `/workspace` on RW)
 
 ## Development
-
-Shared image logic lives in `shared/`. After editing it, run:
 
 ```bash
 ./sync-addons.sh

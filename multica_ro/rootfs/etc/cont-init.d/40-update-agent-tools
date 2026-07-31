@@ -1,0 +1,3 @@
+#!/command/with-contenv bash
+# Refresh agent CLIs before the Multica daemon starts.
+exec /usr/bin/update-agent-tools

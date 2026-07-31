@@ -1,0 +1,7 @@
+#!/command/with-contenv bash
+# Periodic agent CLI updates (Claude / Cursor / Pi).
+while true; do
+  # First loop iteration is delayed so cont-init already refreshed once at boot.
+  sleep "${TOOL_UPDATE_INTERVAL_SECONDS:-21600}"
+  /usr/bin/update-agent-tools || true
+done

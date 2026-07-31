@@ -5,22 +5,25 @@
 | Option | Default when blank | Description |
 |--------|--------------------|-------------|
 | `multica_token` | **required** | Multica PAT (`mul_…`) |
-| `server_url` | `https://api.multica.ai` | Multica API |
-| `app_url` | `https://multica.ai` | Multica app |
-| `workspace_id` | — | Optional workspace |
-| `device_name` | `HA Config (read-write)` | Daemon / computer name in Multica |
-| `runtime_name` | `Claude (HA read-write)` | Runtime display name |
-| `anthropic_api_key` | — | Headless Claude auth |
+| `server_url` / `app_url` | Multica Cloud | Self-host override |
+| `device_name` | `HA Config (read-write)` | Computer name in Multica |
+| `runtime_name` | *(empty)* | Leave blank so Claude, Cursor, and Pi each register |
+| `anthropic_api_key` | — | Claude Code API / plan-linked key |
+| `cursor_api_key` | — | Cursor Agent API key (Cursor plan) |
+| `openrouter_api_key` | — | Pi → OpenRouter |
+| `openrouter_model` | `anthropic/claude-sonnet-4` | Default Pi model on OpenRouter |
 | `max_concurrent_tasks` | `2` | Concurrency |
 
 ## Access boundary
 
-Supervisor maps Home Assistant config into this container as **read-write** at `/config`. Only assign agents here when they are allowed to edit configuration.
+`/config` is read-write. `/workspace` is also available as a writable agent scratch dir.
 
-## Lifecycle (not systemd)
+## Runtimes & updates
 
-Home Assistant OS does not expose host systemd to add-ons. The Supervisor starts/stops/restarts this container (`boot: auto`). Inside the container, s6-overlay restarts Multica on unexpected crashes, but **does not** loop on configuration/auth failures (fix the token and restart the add-on).
+Image seeds Claude Code, Cursor Agent (`cursor-agent`), and Pi. On every start (and every 6h) `update-agent-tools` refreshes them to the latest verified releases.
 
-## HA API
+## Plan / provider login
 
-`ha-states`, `ha-history`, and `ha-api` work the same as the read-only add-on.
+- **Claude:** set `anthropic_api_key`, or persist interactive login under `/data/.claude`.
+- **Cursor:** set `cursor_api_key` from Cursor dashboard.
+- **Pi / OpenRouter:** set `openrouter_api_key`.
