@@ -17,18 +17,56 @@ mkdir -p /data/bin /data/.local/bin /data/.local/share /usr/local/bin \
   /data/.npm /data/.cache
 
 # Bound network/install steps so Supervisor never sees a stuck boot/service.
+# Exit 124 from GNU timeout means the deadline was hit.
 run_timeout() {
   local secs="$1"; shift
   if command -v timeout >/dev/null 2>&1; then
-    timeout "${secs}" "$@"
-  else
-    "$@"
+    timeout --signal=TERM --kill-after=30s "${secs}" "$@"
+    return $?
+  fi
+  "$@"
+  return $?
+}
+
+explain_rc() {
+  local rc="$1"
+  case "${rc}" in
+    0) echo "ok" ;;
+    124) echo "timed out (GNU timeout exit 124)" ;;
+    137) echo "killed SIGKILL (often OOM or kill-after)" ;;
+    143) echo "terminated SIGTERM" ;;
+    *) echo "exit ${rc}" ;;
+  esac
+}
+
+log_df() {
+  local line
+  while IFS= read -r line; do
+    log "df: ${line}"
+  done < <(df -h /data / /usr/local 2>/dev/null || df -h /data / 2>/dev/null || true)
+}
+
+tail_npm_log() {
+  local latest lines
+  latest="$(ls -t /data/.npm/_logs/*-debug-*.log 2>/dev/null | head -1 || true)"
+  if [[ -z "${latest}" ]]; then
+    log "no npm debug log under /data/.npm/_logs"
+    return 0
+  fi
+  log "npm debug log: ${latest}"
+  lines="$(tail -n 60 "${latest}" 2>/dev/null || true)"
+  if [[ -n "${lines}" ]]; then
+    log "----- npm log tail -----"
+    while IFS= read -r line; do
+      log "npm: ${line}"
+    done <<<"${lines}"
+    log "----- end npm log -----"
   fi
 }
 
 update_claude() {
   log "Updating Claude Code to latest…"
-  local version checksum url tmp
+  local version checksum url tmp rc
   version="$(run_timeout 60 curl -fsSL https://downloads.claude.ai/claude-code-releases/latest)" || {
     log "could not resolve Claude latest version"; return 0
   }
@@ -54,9 +92,11 @@ update_claude() {
 update_cursor() {
   log "Updating Cursor Agent…"
   # Official installer places agent under $HOME/.local; use /data so it persists.
-  local old_home="${HOME:-}"
+  local old_home="${HOME:-}" rc
   export HOME=/data
-  if run_timeout 180 bash -c 'curl -fsS https://cursor.com/install | bash'; then
+  run_timeout 180 bash -c 'curl -fsS https://cursor.com/install | bash'
+  rc=$?
+  if [[ "${rc}" -eq 0 ]]; then
     if [[ -x /data/.local/bin/cursor-agent ]]; then
       ln -sfn /data/.local/bin/cursor-agent /data/bin/cursor-agent
       ln -sfn /data/.local/bin/agent /data/bin/agent
@@ -65,13 +105,12 @@ update_cursor() {
     fi
     log "Cursor Agent updated ($(cursor-agent --version 2>/dev/null || agent --version 2>/dev/null || echo unknown))"
   else
-    log "Cursor Agent update failed or timed out (non-fatal)"
+    log "Cursor Agent update failed ($(explain_rc "${rc}")) (non-fatal)"
   fi
   export HOME="${old_home}"
 }
 
 pi_installed_version() {
-  # e.g. "/usr/local/lib/.../node_modules/@earendil-works/pi-coding-agent@0.83.0"
   npm ls -g --depth=0 --json @earendil-works/pi-coding-agent 2>/dev/null \
     | jq -r '.dependencies["@earendil-works/pi-coding-agent"].version // empty'
 }
@@ -85,11 +124,26 @@ update_pi() {
   export npm_config_update_notifier=false
   export npm_config_fund=false
   export npm_config_audit=false
+  # Stream useful progress into the add-on log (HA captures stdout/stderr).
+  export npm_config_loglevel="${NPM_LOGLEVEL:-info}"
 
-  local installed latest
+  local installed latest rc started elapsed
+  log "node=$(node -v 2>/dev/null || echo missing) npm=$(npm -v 2>/dev/null || echo missing) arch=${ARCH_RAW}"
+  log_df
+
   installed="$(pi_installed_version || true)"
   latest="$(run_timeout 60 npm view @earendil-works/pi-coding-agent version 2>/dev/null || true)"
-  if [[ -n "${installed}" && -n "${latest}" && "${installed}" == "${latest}" ]]; then
+  log "Pi installed=${installed:-none} latest=${latest:-unknown}"
+
+  if [[ -z "${latest}" ]]; then
+    log "could not resolve latest Pi version from npm registry (network/DNS?)"
+    run_timeout 15 curl -fsSI https://registry.npmjs.org/@earendil-works/pi-coding-agent >/dev/null \
+      && log "npm registry HEAD ok" \
+      || log "npm registry HEAD failed"
+    return 0
+  fi
+
+  if [[ -n "${installed}" && "${installed}" == "${latest}" ]]; then
     log "Pi already at ${installed}; skip npm install"
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
@@ -97,17 +151,26 @@ update_pi() {
     return 0
   fi
 
-  # Full npm tree is large (~13MB + deps); HA CPUs often exceed 3 minutes.
-  log "Pi ${installed:-none} → ${latest:-latest} (may take several minutes)…"
-  if run_timeout 900 npm install -g --omit=dev --no-audit --no-fund \
-      @earendil-works/pi-coding-agent@latest; then
+  # Full npm tree is large (~13MB + deps); keep a generous bound and explain failures.
+  log "Pi ${installed:-none} → ${latest} (npm install, timeout 900s)…"
+  started="$(date +%s)"
+  run_timeout 900 npm install -g --omit=dev --no-audit --no-fund \
+    @earendil-works/pi-coding-agent@latest
+  rc=$?
+  elapsed="$(( $(date +%s) - started ))"
+  log "Pi npm install finished after ${elapsed}s ($(explain_rc "${rc}"))"
+
+  if [[ "${rc}" -eq 0 ]]; then
     if command -v pi >/dev/null; then
       ln -sfn "$(command -v pi)" /data/bin/pi 2>/dev/null || true
     fi
     log "Pi updated ($(pi --version 2>/dev/null || echo unknown))"
-  else
-    log "Pi update failed or timed out (non-fatal); image-seeded pi remains available"
+    return 0
   fi
+
+  log "Pi update failed (non-fatal); image-seeded pi remains available"
+  log_df
+  tail_npm_log
 }
 
 update_claude

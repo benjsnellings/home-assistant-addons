@@ -1,5 +1,5 @@
 name: Multica Daemon (read-write)
-version: "0.3.6"
+version: "0.3.7"
 slug: multica_rw
 description: >-
   Multica agent daemon with read-write Home Assistant config mounts and Claude +
