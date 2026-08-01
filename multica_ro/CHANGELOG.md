@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+- Verbose Pi updater diagnostics: exit reason (timeout vs kill), disk free, npm log tail
+
 ## 0.3.6
 
 - Pi updater: skip npm install when already current; raise timeout to 15m (SIGTERM was our 3m cap)
