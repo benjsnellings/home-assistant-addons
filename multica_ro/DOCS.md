@@ -22,6 +22,10 @@
 | `/config`, `/share`, `/media` | **read-only** |
 | `/workspace` → `/data/workspace` | **read-write** (use this for Multica `local_directory`) |
 
+## Status sensor
+
+On boot the add-on posts lifecycle state to `sensor.multica_daemon_ro_status` (same states as RW: `starting` → `authenticated` → `ready` / `error`). Status publish uses a dedicated helper so it works even though agent `ha-api` writes stay blocked in RO.
+
 ## Runtimes & updates
 
 Image seeds Claude Code, Cursor Agent (`cursor-agent`), and Pi. On every start (and every 6h) `update-agent-tools` refreshes them to the latest verified releases.

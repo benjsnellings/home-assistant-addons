@@ -9,6 +9,8 @@ ACCESS_MODE="${MULTICA_ACCESS_MODE:-rw}"
 DEFAULT_DEVICE_NAME="${MULTICA_DEFAULT_DEVICE_NAME:-Home Assistant}"
 DEFAULT_RUNTIME_NAME="${MULTICA_DEFAULT_RUNTIME_NAME:-}"
 
+# Export early so ha-publish-status / die_config hit the correct entity id.
+export MULTICA_ACCESS_MODE="${ACCESS_MODE}"
 export HOME="/data"
 export XDG_CONFIG_HOME="/data/.config"
 export XDG_DATA_HOME="/data/.local/share"
@@ -27,8 +29,16 @@ log() {
   echo "[multica-${ACCESS_MODE}] ${level}: $*"
 }
 
+publish_status() {
+  # Best-effort; ha-publish-status never fails the boot path.
+  if command -v ha-publish-status >/dev/null 2>&1; then
+    ha-publish-status "$@" || true
+  fi
+}
+
 die_config() {
   log error "$*"
+  publish_status error "$*"
   exit "${EX_CONFIG}"
 }
 
@@ -114,6 +124,8 @@ ha-api GET /states
 
 Filesystem mode is \`${ACCESS_MODE}\`. \`ha-api\` blocks non-GET when RO; \`SUPERVISOR_TOKEN\` still allows Core API calls via raw curl.
 
+This add-on publishes lifecycle status to \`sensor.multica_daemon_${ACCESS_MODE}_status\` (\`starting\` → \`authenticated\` → \`ready\` / \`error\`) via \`ha-publish-status\`.
+
 Environment: \`HA_URL\`, \`HA_TOKEN\`/\`SUPERVISOR_TOKEN\`, \`MULTICA_ACCESS_MODE\`, \`MULTICA_HA_CONFIG=/config\`, \`MULTICA_WORKSPACE=/workspace\`
 EOF
 }
@@ -177,6 +189,8 @@ export HA_TOKEN="${SUPERVISOR_TOKEN:-}"
 export MULTICA_HA_CONFIG="/config"
 export MULTICA_WORKSPACE="/workspace"
 export MULTICA_ACCESS_MODE="${ACCESS_MODE}"
+
+publish_status starting "Bootstrapping Multica daemon"
 
 MULTICA_TOKEN="$(option multica_token "")"
 SERVER_URL="$(option server_url "https://api.multica.ai")"
@@ -249,6 +263,8 @@ else
   die_config "No Multica credentials. Set the 'multica_token' add-on option (Settings → API Tokens on Multica)."
 fi
 
+publish_status authenticated "Multica credentials OK"
+
 if [[ -n "${WORKSPACE_ID}" ]]; then
   multica workspace switch "${WORKSPACE_ID}" >/dev/null 2>&1 || \
     log warning "Could not switch workspace to ${WORKSPACE_ID}"
@@ -265,4 +281,7 @@ fi
 
 log info "Starting Multica daemon (access=${ACCESS_MODE}, device=${DEVICE_NAME})"
 log info "HA config: /config (${ACCESS_MODE}) | agent workspace: /workspace (rw) | HA API: ${HA_URL}"
+# Best “setup finished” signal from bash alone — true heartbeat readiness would
+# need a hook inside the daemon after exec.
+publish_status ready "Starting Multica daemon"
 exec multica "${DAEMON_ARGS[@]}"

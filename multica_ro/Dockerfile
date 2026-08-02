@@ -93,6 +93,7 @@ COPY rootfs /
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh \
       /usr/bin/ha-api \
+      /usr/bin/ha-publish-status \
       /usr/bin/ha-states \
       /usr/bin/ha-history \
       /usr/bin/update-agent-tools \
