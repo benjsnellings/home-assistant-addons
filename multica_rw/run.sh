@@ -13,6 +13,9 @@ export HOME="/data"
 export XDG_CONFIG_HOME="/data/.config"
 export XDG_DATA_HOME="/data/.local/share"
 export XDG_CACHE_HOME="/data/.cache"
+# HA add-on containers run as root; Claude Code blocks bypassPermissions unless
+# it knows we are in a sandbox/container (see anthropics/claude-code#9184).
+export IS_SANDBOX=1
 mkdir -p "${HOME}" "${XDG_CONFIG_HOME}" "${XDG_DATA_HOME}" "${XDG_CACHE_HOME}" \
   /data/.multica /data/.claude /data/bin /data/workspace /data/.pi/agent \
   /data/.local/bin /data/.local/share

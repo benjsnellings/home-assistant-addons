@@ -14,8 +14,10 @@ ARG NODE_SHA256_ARM64=4018815ac1bed4f18208901bbde524fee881253b591ee7bc952660e69b
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# IS_SANDBOX=1: Claude Code allows bypassPermissions as root inside containers.
 ENV HOME=/root \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    IS_SANDBOX=1
 
 # Seed Multica + Claude + Cursor + Pi. Runtime update-agent-tools keeps CLIs current.
 # Debian/glibc base is required: Cursor Agent's bundled Node needs fcntl64 (fails on Alpine/musl).

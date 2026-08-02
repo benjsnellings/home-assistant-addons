@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8
+
+- Set `IS_SANDBOX=1` so Claude Code can use bypassPermissions as root in the add-on container
+
 ## 0.3.7
 
 - Verbose Pi updater diagnostics: exit reason (timeout vs kill), disk free, npm log tail
