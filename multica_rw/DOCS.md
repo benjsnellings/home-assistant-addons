@@ -25,6 +25,8 @@ Image seeds Claude Code, Cursor Agent (`cursor-agent`), and Pi. On every start (
 
 ## Plan / provider login
 
-- **Claude:** set `anthropic_api_key`, or persist interactive login under `/data/.claude`.
+- **Claude Pro/Max (subscription usage):** leave `anthropic_api_key` empty; set `claude_code_oauth_token` from `claude setup-token` on a machine with a browser (see [authentication](https://code.claude.com/docs/en/authentication)).
+- **Claude API billing:** set `anthropic_api_key` instead (the add-on prefers OAuth when the token option is filled).
+- **Claude interactive:** leave both blank and login once under `/data/.claude` from a shell.
 - **Cursor:** set `cursor_api_key` from Cursor dashboard.
 - **Pi / OpenRouter:** set `openrouter_api_key`.
