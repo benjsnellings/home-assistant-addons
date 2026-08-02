@@ -8,7 +8,8 @@
 | `server_url` / `app_url` | Multica Cloud | Self-host override |
 | `device_name` | `HA Config (read-write)` | Computer name in Multica |
 | `runtime_name` | *(empty)* | Leave blank so Claude, Cursor, and Pi each register |
-| `anthropic_api_key` | — | Claude Code API / plan-linked key |
+| `anthropic_api_key` | — | Claude Code **API/Console** key (API billing, not Pro usage) |
+| `claude_code_oauth_token` | — | Claude Code **Pro/Max** OAuth token from `claude setup-token` |
 | `cursor_api_key` | — | Cursor Agent API key (Cursor plan) |
 | `openrouter_api_key` | — | Pi → OpenRouter |
 | `openrouter_model` | `anthropic/claude-sonnet-4` | Default Pi model on OpenRouter |

@@ -19,7 +19,10 @@ configuration:
     description: Leave blank so Claude, Cursor, and Pi each register as separate runtimes.
   anthropic_api_key:
     name: Anthropic API key
-    description: Claude Code API key (plan-linked Console key for subscription usage)
+    description: Claude Code Console/API key (API billing — does not use Pro/Max subscription usage)
+  claude_code_oauth_token:
+    name: Claude Code OAuth token
+    description: Pro/Max subscription token from `claude setup-token` (preferred for subscription usage)
   cursor_api_key:
     name: Cursor API key
     description: Cursor Agent API key for headless plan authentication
