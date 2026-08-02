@@ -119,17 +119,30 @@ EOF
 }
 
 configure_provider_auth() {
-  local anthropic_key cursor_key openrouter_key openrouter_model
+  local anthropic_key cursor_key openrouter_key openrouter_model claude_oauth
   anthropic_key="$(option anthropic_api_key "")"
+  claude_oauth="$(option claude_code_oauth_token "")"
   cursor_key="$(option cursor_api_key "")"
   openrouter_key="$(option openrouter_api_key "")"
   openrouter_model="$(option openrouter_model "anthropic/claude-sonnet-4")"
 
-  if [[ -n "${anthropic_key}" ]]; then
+  # Claude Code auth: API key bills Console/API usage; OAuth token uses Pro/Max
+  # subscription limits. API key wins if both are set — prefer subscription when
+  # the OAuth token option is provided.
+  if [[ -n "${claude_oauth}" ]]; then
+    export CLAUDE_CODE_OAUTH_TOKEN="${claude_oauth}"
+    unset ANTHROPIC_API_KEY || true
+    unset ANTHROPIC_AUTH_TOKEN || true
+    if [[ -n "${anthropic_key}" ]]; then
+      log warning "claude_code_oauth_token set — ignoring anthropic_api_key so Pro/Max subscription is used (API key would take precedence)"
+    else
+      log info "CLAUDE_CODE_OAUTH_TOKEN set for Claude Code (Pro/Max subscription)"
+    fi
+  elif [[ -n "${anthropic_key}" ]]; then
     export ANTHROPIC_API_KEY="${anthropic_key}"
-    log info "ANTHROPIC_API_KEY set for Claude Code"
+    log info "ANTHROPIC_API_KEY set for Claude Code (API / Console billing)"
   else
-    log info "No anthropic_api_key — Claude subscription login must already exist under /data/.claude (run claude auth from a shell if needed)"
+    log info "No Claude credentials in options — using existing /data/.claude login if present"
   fi
 
   if [[ -n "${cursor_key}" ]]; then

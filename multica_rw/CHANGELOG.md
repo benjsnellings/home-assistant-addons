@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.9
+
+- Add `claude_code_oauth_token` for Claude Pro/Max subscription (via `claude setup-token`); clears API key env when set
+
 ## 0.3.8
 
 - Set `IS_SANDBOX=1` so Claude Code can use bypassPermissions as root in the add-on container

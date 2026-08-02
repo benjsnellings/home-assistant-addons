@@ -1,5 +1,5 @@
 name: Multica Daemon (read-only)
-version: "0.3.8"
+version: "0.3.9"
 slug: multica_ro
 description: >-
   Multica agent daemon with read-only Home Assistant config/share/media mounts,
@@ -34,6 +34,7 @@ options:
   device_name: ""
   runtime_name: ""
   anthropic_api_key: ""
+  claude_code_oauth_token: ""
   cursor_api_key: ""
   openrouter_api_key: ""
   openrouter_model: "anthropic/claude-sonnet-4"
@@ -46,6 +47,7 @@ schema:
   device_name: str?
   runtime_name: str?
   anthropic_api_key: password?
+  claude_code_oauth_token: password?
   cursor_api_key: password?
   openrouter_api_key: password?
   openrouter_model: str?
