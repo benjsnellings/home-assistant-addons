@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10
+
+- Publish lifecycle status to `sensor.multica_daemon_rw_status` (`starting` → `authenticated` → `ready` / `error`) via `ha-publish-status`
+
 ## 0.3.9
 
 - Add `claude_code_oauth_token` for Claude Pro/Max subscription (via `claude setup-token`); clears API key env when set

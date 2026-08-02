@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Publish Multica daemon lifecycle status to Home Assistant Core.
+# Allowed in both RO and RW add-ons (bypasses ha-api's RO write block).
+# Usage: ha-publish-status STATE [message]
+# States: starting | authenticated | ready | error | stopped
+set -euo pipefail
+
+STATE="${1:-}"
+MESSAGE="${2:-}"
+
+if [[ -z "${STATE}" ]]; then
+  echo "Usage: ha-publish-status STATE [message]" >&2
+  echo "  ha-publish-status starting" >&2
+  echo "  ha-publish-status ready" >&2
+  exit 2
+fi
+
+ACCESS_MODE="${MULTICA_ACCESS_MODE:-rw}"
+case "${ACCESS_MODE}" in
+  ro)
+    ENTITY_ID="sensor.multica_daemon_ro_status"
+    FRIENDLY_NAME="Multica Daemon RO Status"
+    ;;
+  *)
+    ENTITY_ID="sensor.multica_daemon_rw_status"
+    FRIENDLY_NAME="Multica Daemon RW Status"
+    ;;
+esac
+
+case "${STATE}" in
+  starting) ICON="mdi:timer-sand" ;;
+  authenticated) ICON="mdi:key-check" ;;
+  ready) ICON="mdi:check-circle" ;;
+  error) ICON="mdi:alert-circle" ;;
+  stopped) ICON="mdi:stop-circle" ;;
+  *) ICON="mdi:robot" ;;
+esac
+
+TOKEN="${HA_TOKEN:-${SUPERVISOR_TOKEN:-}}"
+BASE="${HA_URL:-http://supervisor/core/api}"
+BASE="${BASE%/}"
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "ha-publish-status: SUPERVISOR_TOKEN / HA_TOKEN is not set; skipping (${STATE})" >&2
+  exit 0
+fi
+
+BODY="$(
+  jq -n \
+    --arg state "${STATE}" \
+    --arg friendly_name "${FRIENDLY_NAME}" \
+    --arg icon "${ICON}" \
+    --arg access_mode "${ACCESS_MODE}" \
+    --arg message "${MESSAGE}" \
+    '{
+      state: $state,
+      attributes: (
+        {
+          friendly_name: $friendly_name,
+          icon: $icon,
+          access_mode: $access_mode
+        }
+        + (if $message == "" then {} else {message: $message} end)
+      )
+    }'
+)"
+
+if curl -fsS \
+  -X POST \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "${BODY}" \
+  "${BASE}/states/${ENTITY_ID}" >/dev/null; then
+  echo "ha-publish-status: ${ENTITY_ID}=${STATE}" >&2
+else
+  # Never fail boot because status publish failed.
+  echo "ha-publish-status: failed to set ${ENTITY_ID}=${STATE}" >&2
+fi
+
+exit 0

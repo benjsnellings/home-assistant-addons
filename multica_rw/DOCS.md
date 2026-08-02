@@ -19,6 +19,19 @@
 
 `/config` is read-write. `/workspace` is also available as a writable agent scratch dir.
 
+## Status sensor
+
+On boot the add-on posts lifecycle state to `sensor.multica_daemon_rw_status`:
+
+| State | Meaning |
+|-------|---------|
+| `starting` | Setup began |
+| `authenticated` | Multica login / stored credentials OK |
+| `ready` | About to start the daemon (setup finished) |
+| `error` | Permanent config/auth failure |
+
+Use this for dashboard colors (e.g. yellow while `starting`/`authenticated`, green on `ready`).
+
 ## Runtimes & updates
 
 Image seeds Claude Code, Cursor Agent (`cursor-agent`), and Pi. On every start (and every 6h) `update-agent-tools` refreshes them to the latest verified releases.
